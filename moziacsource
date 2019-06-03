@@ -1,0 +1,137 @@
+//Copy + Paste directly into Moziac's editor (ruismaker.com/mozaic/) 
+//or add the compiled preset (.mozaic) to the moziac app through file share.
+@OnLoad 
+  ShowLayout 1
+  LabelKnobs {Jay Meter - MIDI Timing Sequencer}
+  LabelKnob 0, {Step 1}
+  LabelKnob 1, {Step 2}
+  LabelKnob 2, {Step 3}
+  LabelKnob 3, {Step 4}
+  LabelKnob 4, {Step 5}
+  LabelKnob 5, {Step 6}
+  LabelKnob 6, {Step 7}
+  LabelKnob 7, {Step 8}
+  LabelKnob 8, {Step 9}
+  LabelKnob 9, {Step 10}
+  LabelKnob 10, {Step 11}
+  LabelKnob 11, {Step 12}
+  LabelKnob 12, {Step 13}
+  LabelKnob 13, {Step 14}
+  LabelKnob 14, {Step 15}
+  LabelKnob 15, {Step 16}
+  LabelKnob 16, {Offset}
+  LabelKnob 17, {Strength}
+  LabelKnob 18, {Random}
+  LabelKnob 19, {Multiplier}
+  LabelKnob 20, {Seq Speed}
+  LabelKnob 21, { }
+  curseq = 0
+  nextseq = 0
+  ppqn = 256 //Set higher or lower for more or fewer substeps between beats
+  SetMetroPPQN ppqn
+  seq = 0
+  substep = 0
+  randmax = 0
+  randmin = 0
+@End
+
+@OnHostStop
+  seq = 0 //on host stop resets sequence.
+  substep = 0 //on host stop resets substeps
+  StopTimer
+  ResetTimer
+@End
+
+@OnMetroPulse //interpolates between beats based on substeps.
+  seqval = curseq + ((nextseq - curseq) * (substep/ppqn))
+  substep = substep + 1
+@End
+
+@OnHostStart
+  log seq
+  StartTimer
+  substep = 0 //resets substep to 0
+  curseq = GetKnobValue seq //gets current seq position knob value
+  strength = GetKnobValue 17 //strength of the effect as a %.
+  randmax = GetKnobValue 18 //range of random offset
+  randmax = TranslateScale randmax, 0, 127, 0, 1000
+  randmin = randmax * -1
+  if seq >= 15 //get next step's value for interpolation
+    nextseq = GetKnobValue 0
+  else
+    nextseq = GetKnobValue seq + 1
+  endif
+  curseq = TranslateScale curseq, 0, 127, -1.00, 1.00
+  nextseq = TranslateScale nextseq, 0, 127, -1.00, 1.00
+  seqval = curseq
+  if seq >= 15
+    seq = 0
+  else
+    seq = seq + 1
+  endif
+  FlashUserLed 
+@End 
+
+@OnNewBeat
+  bpmon = HostTempo
+  beatinms = 60000 / bpmon //set beatlen in ms
+  seqmult = GetKnobValue 20
+  seqmult = RoundUp((seqmult + 1)/ 32)
+  beatlen = beatinms / seqmult
+  SetTimerInterval beatlen //set multiplier to seq.
+@End 
+
+@OnTimer
+  log seq
+  FlashUserLed
+  substep = 0 //resets substep to 0
+  curseq = GetKnobValue seq //gets current seq position knob value
+  strength = GetKnobValue 17 //strength of the effect as a %.
+  randmax = GetKnobValue 18 //range of random offset
+  randmax = TranslateScale randmax, 0, 127, 0, 1000
+  randmin = randmax * -1
+  if seq >= 15 //get next step's value for interpolation
+    nextseq = GetKnobValue 0
+  else
+    nextseq = GetKnobValue seq + 1
+  endif
+  curseq = TranslateScale curseq, 0, 127, -1.00, 1.00
+  nextseq = TranslateScale nextseq, 0, 127, -1.00, 1.00
+  seqval = curseq
+  if seq >= 15
+    seq = 0
+  else
+    seq = seq + 1
+  endif
+@End
+
+@OnMidiInput
+  //Random offset as %.
+  randmoffset = Random randmin, randmax
+  randmoffset = randmoffset / 1000
+  //total offset as sequencer offset + random.
+  finalval = (beatinms * seqval) + (beatinms * randmoffset)
+  //fine adjustment of offset range.
+  strength = GetKnobValue 17
+  strength = TranslateScale strength, 0, 127, 0.00, 1.00
+  finalval = finalval * strength
+  //Additive offset. Provided to support negative offsets.
+  offset = GetKnobValue 16
+  offset = TranslateScale offset, 0, 127, 0.00, 1.00
+  offset = offset * beatinms
+  finalval = finalval + offset
+  //Multiplier to coarse adjust the offset range by multiples.
+  multiplier = GetKnobValue 19
+  multiplier = 17 - (RoundUp((multiplier+1)/ 8))
+  finalval = finalval / multiplier
+  //Zero out remaining negative values to prevent errors.
+  if finalval < 0
+    finalval = 0
+  endif
+  SendMIDIThru finalval //Apply offset as delay value to input.
+@End
+
+@Description
+Jay Meter is a midi timing sequencer which can perform forward and backward offsets. Designed for Hip Hop, IDM, and any genre where human or off-kilter grooves are required.
+In order to accomplish forward offsets, a global offset is provided to delay all midi input by a specified amount. Thus "negative" timing delays are therefore possible. Please send feedback via intua.net or audiob.us private message (atomicafro) with your thoughts.
+@End
