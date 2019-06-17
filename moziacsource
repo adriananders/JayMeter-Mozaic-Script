@@ -48,7 +48,6 @@
 @End
 
 @OnHostStart
-  log seq
   StartTimer
   substep = 0 //resets substep to 0
   curseq = GetKnobValue seq //gets current seq position knob value
@@ -82,7 +81,6 @@
 @End 
 
 @OnTimer
-  log seq
   FlashUserLed
   substep = 0 //resets substep to 0
   curseq = GetKnobValue seq //gets current seq position knob value
