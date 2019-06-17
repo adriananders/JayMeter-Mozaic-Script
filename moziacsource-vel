@@ -1,0 +1,159 @@
+//Copy + Paste directly into Moziac's editor (ruismaker.com/mozaic/) 
+//or add the compiled preset (.mozaic) to the moziac app through file share.
+@OnLoad 
+  ShowLayout 1
+  LabelKnobs {Jay Meter Vel - MIDI Velocity Sequencer}
+  LabelKnob 0, {Step 1}
+  LabelKnob 1, {Step 2}
+  LabelKnob 2, {Step 3}
+  LabelKnob 3, {Step 4}
+  LabelKnob 4, {Step 5}
+  LabelKnob 5, {Step 6}
+  LabelKnob 6, {Step 7}
+  LabelKnob 7, {Step 8}
+  LabelKnob 8, {Step 9}
+  LabelKnob 9, {Step 10}
+  LabelKnob 10, {Step 11}
+  LabelKnob 11, {Step 12}
+  LabelKnob 12, {Step 13}
+  LabelKnob 13, {Step 14}
+  LabelKnob 14, {Step 15}
+  LabelKnob 15, {Step 16}
+  LabelKnob 16, {Offset}
+  LabelKnob 17, {Width}
+  LabelKnob 18, {Random}
+  LabelKnob 19, {Dynamics}
+  LabelKnob 20, {Seq Speed}
+  LabelKnob 21, {Bypass}
+  curseq = 0
+  nextseq = 0
+  ppqn = 256 //Set higher or lower for more or fewer substeps between beats
+  SetMetroPPQN ppqn
+  seq = 0
+  substep = 0
+  randmax = 0
+  randmin = 0
+@End
+
+@OnHostStop
+  seq = 0 //on host stop resets sequence.
+  substep = 0 //on host stop resets substeps
+  StopTimer
+  ResetTimer
+@End
+
+@OnMetroPulse //interpolates between beats based on substeps.
+  seqval = curseq + ((nextseq - curseq) * (substep/ppqn))
+  substep = substep + 1
+@End
+
+@OnHostStart
+  StartTimer
+  substep = 0 //resets substep to 0
+  curseq = GetKnobValue seq //gets current seq position knob value
+  strength = GetKnobValue 17 //strength of the effect as a %.
+  randmax = GetKnobValue 18 //range of random offset
+  randmax = TranslateScale randmax, 0, 127, 0, 127
+  randmin = randmax * -1
+  if seq >= 15 //get next step's value for interpolation
+    nextseq = GetKnobValue 0
+  else
+    nextseq = GetKnobValue seq + 1
+  endif
+  curseq = TranslateScale curseq, 0, 127, -1.00, 1.00
+  nextseq = TranslateScale nextseq, 0, 127, -1.00, 1.00
+  seqval = curseq
+  if seq >= 15
+    seq = 0
+  else
+    seq = seq + 1
+  endif
+  FlashUserLed 
+@End 
+
+@OnNewBeat
+  bpmon = HostTempo
+  beatinms = 60000 / bpmon //set beatlen in ms
+  seqmult = GetKnobValue 20
+  seqmult = RoundUp((seqmult + 1)/ 32)
+  beatlen = beatinms / seqmult
+  SetTimerInterval beatlen //set multiplier to seq.
+@End 
+
+@OnTimer
+  FlashUserLed
+  substep = 0 //resets substep to 0
+  curseq = GetKnobValue seq //gets current seq position knob value
+  width = GetKnobValue 17 //strength of the effect as a %.
+  randmax = GetKnobValue 18 //range of random offset
+  randmax = TranslateScale randmax, 0, 127, 0, 127
+  randmin = randmax * -1
+  if seq >= 15 //get next step's value for interpolation
+    nextseq = GetKnobValue 0
+  else
+    nextseq = GetKnobValue seq + 1
+  endif
+  curseq = TranslateScale curseq, 0, 127, -1.00, 1.00
+  nextseq = TranslateScale nextseq, 0, 127, -1.00, 1.00
+  seqval = curseq
+  if seq >= 15
+    seq = 0
+  else
+    seq = seq + 1
+  endif
+@End
+
+@OnMidiNote
+  initvel = MIDIVelocity
+  //Random velocity
+  randmvel = Random randmin, randmax
+  //total velocity as sequencer offset + random.
+  finalval = initvel + (initvel * seqval) + randmvel
+
+  //adjustment of velocity range.
+  width = GetKnobValue 17
+  width = TranslateScale width, 0, 127, 0.00, 1.00
+  finalval = finalval * width
+  //Offset. Used to adjust the entire value up or down.
+  offset = GetKnobValue 16
+  offset = TranslateScale offset, 0, 127, -127, 127
+  finalval = finalval + offset
+  //adjustment of velocity curve. Center is linear. 
+  // moving towards 0 biases curve down.
+  // moving towards 127 biases curve up.
+  curve = GetKnobValue 19
+  if curve < 64
+    curveout = 11 - TranslateScale curve, 0, 63, 1.00, 10.00
+  else
+    curveout = 1 - TranslateScale curve, 64, 127, 0.00, 1.00
+  endif
+  finalval = TranslateCurve finalval, curveout, 0, 127
+  //Constrain values to midi range to avoid errors.
+  if finalval > 127
+    finalval = 127
+  endif
+  //Bypass effect
+  bypass = GetKnobValue 21
+  if bypass > 64
+    finalval = MIDIVelocity
+  endif
+  if finalval < 1
+    Log {Dropped note message with 0 velocity.}
+  else
+    Log {Changed velocity }, MIDIVelocity, { to }, (round finalval)
+    SendMIDIOut MIDIByte1, MIDIByte2, finalval
+  endif
+
+@End
+
+@OnMidiInput 
+  // we handle note on separately, 
+  // everything else can pass
+  if MIDICommand <> 0x90 and MIDICommand <> 0x80
+    SendMIDIThru
+  endif 
+@End  
+
+@Description
+Jay Meter: Velocity is a midi velocity adjustment sequencer designed as a velocity companion for Jay Meter: Timing. Please send feedback via intua.net or audiob.us private message (atomicafro) with your thoughts.
+@End
