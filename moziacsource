@@ -24,7 +24,7 @@
   LabelKnob 18, {Random}
   LabelKnob 19, {Multiplier}
   LabelKnob 20, {Seq Speed}
-  LabelKnob 21, { }
+  LabelKnob 21, {Bypass}
   curseq = 0
   nextseq = 0
   ppqn = 256 //Set higher or lower for more or fewer substeps between beats
@@ -33,6 +33,29 @@
   substep = 0
   randmax = 0
   randmin = 0
+  knobmidichan = 0
+  knobcc[0] = 100
+  knobcc[1] = 101
+  knobcc[2] = 102
+  knobcc[3] = 103
+  knobcc[4] = 104
+  knobcc[5] = 105
+  knobcc[6] = 106
+  knobcc[7] = 107
+  knobcc[8] = 108
+  knobcc[9] = 109
+  knobcc[10] = 110
+  knobcc[11] = 111
+  knobcc[12] = 112
+  knobcc[13] = 113
+  knobcc[14] = 114
+  knobcc[15] = 115
+  knobcc[16] = 116
+  knobcc[17] = 117
+  knobcc[18] = 118
+  knobcc[19] = 119
+  knobcc[20] = 120
+  knobcc[21] = 121
 @End
 
 @OnHostStop
@@ -126,7 +149,18 @@
   if finalval < 0
     finalval = 0
   endif
+  //Bypass effect
+  bypass = GetKnobValue 21
+  if bypass > 64
+    finalval = 0
+  endif
   SendMIDIThru finalval //Apply offset as delay value to input.
+  for icc = 0 to 21
+    if MIDICommand = 0xB0 and MIDIChannel = knobmidichan and MIDIByte2 = knobcc[icc]
+      log test
+      SetKnobValue icc, MIDIByte3
+    endif
+  endfor
 @End
 
 @Description
